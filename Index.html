@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sequence Alignment & Motif Analyzer</title>
+    <!-- Chart.js 라이브러리 로드 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary-color: #8b0000;
+            --bg-color: #f4f4f9;
+            --border-color: #ccc;
+            --secondary-color: #2c3e50;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--primary-color);
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: var(--secondary-color);
+            margin-top: 30px;
+            border-left: 4px solid var(--primary-color);
+            padding-left: 10px;
+        }
+        h3 {
+            color: #34495e;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        .control-panel {
+            background: #fdfdfd;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        button {
+            background-color: var(--primary-color);
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #660000;
+        }
+        .btn-download {
+            background-color: #27ae60;
+        }
+        .btn-download:hover {
+            background-color: #219150;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        .chart-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        .alignment-container {
+            overflow-x: auto;
+            background: #fff;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        .seq-row {
+            display: flex;
+            font-family: 'Courier New', Courier, monospace;
+            white-space: nowrap;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .seq-name {
+            width: 150px;
+            flex-shrink: 0;
+            font-weight: bold;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .seq-data {
+            letter-spacing: 2px;
+        }
+        /* Color Coding */
+        .aa-hydrophobic { background-color: #c8c8c8; color: black; }
+        .aa-polar { background-color: #a0d8a0; color: black; }
+        .aa-basic { background-color: #a0a0ff; color: black; }
+        .aa-acidic { background-color: #ffa0a0; color: black; }
+        .nt-a { background-color: #a0ffa0; color: black; }
+        .nt-t { background-color: #ffa0a0; color: black; }
+        .nt-g { background-color: #ffffa0; color: black; }
+        .nt-c { background-color: #a0a0ff; color: black; }
+        .match-dot { color: #ccc; }
+        
+        .motif-box {
+            background-color: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 4px;
+        }
+        .motif-item {
+            background-color: #fff;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+        }
+        .motif-item ul {
+            margin: 5px 0 0 0;
+            padding-left: 20px;
+        }
+        .header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Sequence Alignment & Motif Analyzer</h1>
+    
+    <div class="control-panel">
+        <div class="form-group">
+            <label>Sequence Mode:</label>
+            <input type="radio" name="seqMode" id="modeAA" value="aa" checked>
+            <label for="modeAA">Amino Acid (단백질)</label>
+            <input type="radio" name="seqMode" id="modeNT" value="nt">
+            <label for="modeNT">Nucleotide (핵산)</label>
+        </div>
+
+        <div class="form-group">
+            <label>FASTA File Upload (최대 10개 선택 가능):</label>
+            <input type="file" id="fileInput" accept=".fasta, .fa, .txt" multiple>
+        </div>
+
+        <div class="form-group">
+            <label>Or Paste FASTA format here (자동 병합됨):</label>
+            <textarea id="fastaText" placeholder=">Seq1&#10;MTEITAAMVKELRESTGAGMMDCKNALSETNGDFDKAVQLLREKGLGKAAKKADRLAAEGLA&#10;>Seq2&#10;MTEITAAMVKELRESTGAGMMDCKNALSETNGDFDKAVQLLREKGLG..."></textarea>
+        </div>
+
+        <button onclick="analyzeSequences()">Analyze Sequences</button>
+    </div>
+
+    <div id="results" style="display: none;">
+        
+        <div class="header-flex">
+            <h2>1. Basic Information & Comparison (Reference: Seq 1)</h2>
+            <button class="btn-download" onclick="downloadCSV()">CSV 파일 다운로드</button>
+        </div>
+        
+        <table id="summaryTable">
+            <thead>
+                <tr>
+                    <th>Seq ID</th>
+                    <th>Length</th>
+                    <th>Length Diff vs Ref</th>
+                    <th>Mismatches vs Ref</th>
+                    <th>Identity (%)</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+
+        <div class="chart-container">
+            <canvas id="identityChart"></canvas>
+        </div>
+
+        <h2>2. Sequence Alignment</h2>
+        <p style="font-size: 12px; color: #666;">* 1번 서열과 일치하는 잔기는 점(.)으로 표시됩니다. 기준 서열과 다른 부분만 하이라이트 됩니다.</p>
+        <div class="alignment-container" id="alignmentView"></div>
+
+        <h2>3. Pairwise Motifs (1번 서열 기준 1:1 공통 모티프 비교)</h2>
+        <p style="font-size: 12px; color: #666;">* 1번 서열(Reference)과 각 개별 서열 간에 공유되는 길이 4 이상의 최대 공통 서열을 보여줍니다.</p>
+        <div class="motif-box" id="motifView"></div>
+    </div>
+</div>
+
+<script>
+    let currentChart = null; 
+    let csvData = []; 
+
+    document.getElementById('fileInput').addEventListener('change', async function(e) {
+        const files = Array.from(e.target.files).slice(0, 10);
+        if (files.length === 0) return;
+
+        const readPromises = files.map(file => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (event) => resolve(event.target.result);
+                reader.onerror = (error) => reject(error);
+                reader.readAsText(file);
+            });
+        });
+
+        try {
+            const fileContents = await Promise.all(readPromises);
+            document.getElementById('fastaText').value = fileContents.join('\n\n');
+        } catch (error) {
+            console.error(error);
+            alert("일부 파일을 읽는 데 실패했습니다.");
+        }
+    });
+
+    function parseFasta(text) {
+        const lines = text.split('\n');
+        const sequences = [];
+        let currentId = '';
+        let currentSeq = '';
+
+        for (let line of lines) {
+            line = line.trim();
+            if (!line) continue;
+            if (line.startsWith('>')) {
+                if (currentId) {
+                    sequences.push({ id: currentId, seq: currentSeq });
+                }
+                currentId = line.substring(1).split(' ')[0];
+                currentSeq = '';
+            } else {
+                currentSeq += line.toUpperCase().replace(/\s/g, '');
+            }
+        }
+        if (currentId) {
+            sequences.push({ id: currentId, seq: currentSeq });
+        }
+        return sequences.slice(0, 10);
+    }
+
+    function getResidueClass(char, mode) {
+        if (mode === 'nt') {
+            if (char === 'A') return 'nt-a';
+            if (char === 'T' || char === 'U') return 'nt-t';
+            if (char === 'G') return 'nt-g';
+            if (char === 'C') return 'nt-c';
+            return '';
+        } else {
+            const hydrophobic = ['A', 'V', 'L', 'I', 'P', 'F', 'M', 'W', 'G', 'C'];
+            const polar = ['S', 'T', 'Y', 'N', 'Q'];
+            const basic = ['K', 'R', 'H'];
+            const acidic = ['D', 'E'];
+
+            if (hydrophobic.includes(char)) return 'aa-hydrophobic';
+            if (polar.includes(char)) return 'aa-polar';
+            if (basic.includes(char)) return 'aa-basic';
+            if (acidic.includes(char)) return 'aa-acidic';
+            return '';
+        }
+    }
+
+    function analyzeSequences() {
+        const text = document.getElementById('fastaText').value;
+        const sequences = parseFasta(text);
+        const mode = document.querySelector('input[name="seqMode"]:checked').value;
+
+        if (sequences.length < 2) {
+            alert("비교를 위해 최소 2개 이상의 서열 데이터가 필요합니다.");
+            return;
+        }
+
+        const refSeq = sequences[0];
+        const tbody = document.querySelector('#summaryTable tbody');
+        const alignmentView = document.getElementById('alignmentView');
+        const motifView = document.getElementById('motifView');
+        
+        tbody.innerHTML = '';
+        alignmentView.innerHTML = '';
+        motifView.innerHTML = '';
+        
+        const chartLabels = [];
+        const chartIdentityData = [];
+        csvData = [["Seq ID", "Length", "Length Diff vs Ref", "Mismatches vs Ref", "Identity (%)"]];
+
+        // 1. Basic Information 
+        sequences.forEach((sq, index) => {
+            let mismatches = 0;
+            const minLen = Math.min(refSeq.seq.length, sq.seq.length);
+            
+            for (let i = 0; i < minLen; i++) {
+                if (refSeq.seq[i] !== sq.seq[i]) mismatches++;
+            }
+            mismatches += Math.abs(refSeq.seq.length - sq.seq.length);
+            
+            const maxLen = Math.max(refSeq.seq.length, sq.seq.length);
+            const identity = ((maxLen - mismatches) / maxLen * 100).toFixed(2);
+            
+            const lenDiff = index === 0 ? 0 : (sq.seq.length - refSeq.seq.length);
+            const lenDiffStr = index === 0 ? '-' : (lenDiff > 0 ? '+' : '') + lenDiff;
+            const mismatchStr = index === 0 ? '-' : mismatches;
+            const identityStr = index === 0 ? '100.00' : identity;
+
+            const tr = document.createElement('tr');
+            if (index === 0) {
+                tr.style.fontWeight = 'bold';
+                tr.style.backgroundColor = '#e8f4f8';
+            }
+            tr.innerHTML = `
+                <td>${sq.id} ${index === 0 ? '(Ref)' : ''}</td>
+                <td>${sq.seq.length}</td>
+                <td>${lenDiffStr}</td>
+                <td>${mismatchStr}</td>
+                <td>${identityStr}</td>
+            `;
+            tbody.appendChild(tr);
+
+            csvData.push([sq.id, sq.seq.length, lenDiffStr, mismatchStr, identityStr]);
+
+            if (index > 0) {
+                chartLabels.push(sq.id);
+                chartIdentityData.push(parseFloat(identity));
+            }
+        });
+
+        renderChart(chartLabels, chartIdentityData);
+
+        // 2. Alignment Visualization
+        sequences.forEach((sq, index) => {
+            const row = document.createElement('div');
+            row.className = 'seq-row';
+            
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'seq-name';
+            nameDiv.title = sq.id;
+            nameDiv.textContent = sq.id;
+            
+            const dataDiv = document.createElement('div');
+            dataDiv.className = 'seq-data';
+
+            for (let i = 0; i < sq.seq.length; i++) {
+                const char = sq.seq[i];
+                const span = document.createElement('span');
+                
+                if (index !== 0 && i < refSeq.seq.length && char === refSeq.seq[i]) {
+                    span.textContent = '.';
+                    span.className = 'match-dot';
+                } else {
+                    span.textContent = char;
+                    span.className = getResidueClass(char, mode);
+                }
+                dataDiv.appendChild(span);
+            }
+
+            row.appendChild(nameDiv);
+            row.appendChild(dataDiv);
+            alignmentView.appendChild(row);
+        });
+
+        // 3. Motif Discovery (1번 서열 vs 개별 서열 1:1 매칭)
+        const minMotifLength = 4;
+        let motifHtml = '';
+
+        for (let i = 1; i < sequences.length; i++) {
+            const targetSeq = sequences[i];
+            let allCommonSubstrings = [];
+            
+            // 모든 공통 부분 문자열 추출
+            for (let start = 0; start < refSeq.seq.length; start++) {
+                for (let end = start + minMotifLength; end <= refSeq.seq.length; end++) {
+                    const substring = refSeq.seq.substring(start, end);
+                    if (targetSeq.seq.includes(substring)) {
+                        allCommonSubstrings.push(substring);
+                    }
+                }
+            }
+            
+            // 중복 제거 후 길이순(긴 것부터) 정렬
+            allCommonSubstrings = [...new Set(allCommonSubstrings)].sort((a, b) => b.length - a.length);
+            
+            // 짧은 부분 문자열이 더 긴 모티프에 포함되어 있다면 제외 (Maximal motif만 추출)
+            let maximalMotifs = [];
+            for (let sub of allCommonSubstrings) {
+                let isSubsumed = maximalMotifs.some(maxM => maxM.includes(sub));
+                if (!isSubsumed) {
+                    maximalMotifs.push(sub);
+                }
+            }
+
+            motifHtml += `<div class="motif-item">`;
+            motifHtml += `<h3>${targetSeq.id} vs Reference (Seq 1)</h3>`;
+            
+            if (maximalMotifs.length > 0) {
+                motifHtml += '<ul>';
+                maximalMotifs.forEach(motif => {
+                    motifHtml += `<li><strong>${motif}</strong> (Length: ${motif.length})</li>`;
+                });
+                motifHtml += '</ul>';
+            } else {
+                motifHtml += `<p style="color: #7f8c8d; padding-left: 20px; margin-top: 5px;">공통된 모티프(길이 4 이상)가 존재하지 않습니다.</p>`;
+            }
+            motifHtml += `</div>`;
+        }
+        
+        motifView.innerHTML = motifHtml;
+        document.getElementById('results').style.display = 'block';
+    }
+
+    function renderChart(labels, data) {
+        const ctx = document.getElementById('identityChart').getContext('2d');
+        if (currentChart) currentChart.destroy();
+
+        currentChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Identity vs Reference (%)',
+                    data: data,
+                    backgroundColor: 'rgba(52, 152, 219, 0.6)',
+                    borderColor: 'rgba(41, 128, 185, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Identity (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '1번 서열(Reference) 대비 일치율 비교'
+                    }
+                }
+            }
+        });
+    }
+
+    function downloadCSV() {
+        if (csvData.length === 0) return;
+        const csvContent = csvData.map(row => row.join(",")).join("\n");
+        const bom = "\uFEFF";
+        const blob = new Blob([bom + csvContent], { type: 'text/csv;charset=utf-8;' });
+        
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "sequence_analysis_result.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+
+</body>
+</html>
